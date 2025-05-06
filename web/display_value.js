@@ -23,7 +23,6 @@ app.registerExtension({
         previewWidget.element.setAttribute("aria-readonly", "true");
         previewWidget.element.readOnly = true
         previewWidget.serialize_widgets = true
-        previewWidget.serialize = false
       }
 
       const onExecuted = nodeType.prototype.onExecuted
