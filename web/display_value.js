@@ -1,85 +1,43 @@
-import { app } from "../../../scripts/app.js";
-import { ComfyWidgets } from "../../../scripts/widgets.js";
+import { app } from "../../../scripts/app.js"
+import { ComfyWidgets } from "../../../scripts/widgets.js"
 
-const nodeName = "DisplayValue";
+const nodeName = "DisplayValue"
 
-// Displays input value on a node
 app.registerExtension({
   name: nodeName,
-  async beforeRegisterNodeDef(nodeType, nodeData, app) {
+
+  async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name === nodeName) {
-      function getCurrentWidgetValue() {
-        return this.widgets?.length 
-          ? this.widgets.map(widget => widget.value).join("\n") 
-          : "";
-      }
+      const onNodeCreated = nodeType.prototype.onNodeCreated
 
-      function populate(value) {
-        if (!this.widgets) this.widgets = []; // Ensure widgets are initialized
+      nodeType.prototype.onNodeCreated = function () {
+        onNodeCreated?.apply(this)
 
-        const staticCount = 0;
-        this.widgets.splice(staticCount).forEach((w) => w.onRemove?.());
-
-        const lines = Array.isArray(value) ? [...value] : [];
-        if (!lines[0]) lines.shift();
-
-        // Generate the new widget value as a string
-        const newValue = lines.join("\n");
-
-        // If the new value is the same as the current value, skip updating
-        if (getCurrentWidgetValue.call(this) === newValue) {
-          return;
+        if (!this.properties) {
+          this.properties = { preview: "" }
         }
 
-        // Only update if the value has changed
-        for (const line of lines) {
-          const { widget } = ComfyWidgets["STRING"](
-            this,
-            "", // no label
-            ["STRING", { multiline: true }],
-            app
-          );
-          widget.inputEl.readOnly = true;
-          widget.inputEl.style.opacity = "0.6";
-          widget.inputEl.setAttribute("aria-readonly", "true");
-          widget.value = line;
-        }
+        const previewWidget = ComfyWidgets["STRING"](this, "preview", ["STRING", { multiline: true, default: this.properties.preview }], app).widget
 
-        // Recalculate and adjust the size of the node
-        requestAnimationFrame(() => {
-          const newSize = this.computeSize();
-          newSize[0] = Math.max(newSize[0], this.size[0]);
-          newSize[1] = Math.max(newSize[1], this.size[1]);
-          this.onResize?.(newSize);
-          app.graph.setDirtyCanvas(true, false);
-        });
+        previewWidget.element.style.opacity = "0.6";
+        previewWidget.element.setAttribute("aria-readonly", "true");
+        previewWidget.element.readOnly = true
+        previewWidget.serialize_widgets = true
+        previewWidget.serialize = false
       }
 
-      const baseExecuted = nodeType.prototype.onExecuted;
+      const onExecuted = nodeType.prototype.onExecuted
+
       nodeType.prototype.onExecuted = function (message) {
-        baseExecuted?.apply(this, arguments);
+        onExecuted?.apply(this, [message])
 
-        // Prevent update if message value is the same as current value
-        const newMessageValue = Array.isArray(message.value) ? message.value.join("\n") : message.value;
+        const previewWidget = this.widgets?.find((w) => w.name === "preview")
 
-        // Compare and populate only if the value has changed
-        if (getCurrentWidgetValue.call(this) !== newMessageValue) {
-          populate.call(this, message.value);
+        if (previewWidget) {
+          const newValue = Array.isArray(message.value) ? message.value.join("\n") : message.value
+          previewWidget.value = newValue
         }
-      };
-
-      const baseConfigure = nodeType.prototype.onConfigure;
-      nodeType.prototype.onConfigure = function () {
-        baseConfigure?.apply(this, arguments);
-        if (this.widgets_values?.length > 0) {
-          const newMessageValue = this.widgets_values.slice(0).join("\n");
-
-          // Skip population if the current widget value is the same as the configured value
-          if (getCurrentWidgetValue.call(this) !== newMessageValue) {
-            populate.call(this, this.widgets_values.slice(0));
-          }
-        }
-      };
+      }
     }
   },
-});
+})
