@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-display-value"
 description = "Custom node for ComfyUI to show values of primitives (str, float, int, or bool)."
-version = "1.0.1"
+version = "1.0.2"
 license = {file = "LICENSE"}
 
 [project.urls]
