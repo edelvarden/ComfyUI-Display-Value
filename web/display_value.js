@@ -1,41 +1,55 @@
 import { app } from "../../../scripts/app.js"
 import { ComfyWidgets } from "../../../scripts/widgets.js"
 
-const nodeName = "DisplayValue"
-
 app.registerExtension({
-  name: nodeName,
+  name: "DisplayValue",
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData.name === nodeName) {
-      const onNodeCreated = nodeType.prototype.onNodeCreated
+    if (nodeData.name !== "DisplayValue") return
 
-      nodeType.prototype.onNodeCreated = function () {
-        onNodeCreated?.apply(this)
+    const _onNodeCreated = nodeType.prototype.onNodeCreated
+    nodeType.prototype.onNodeCreated = function () {
+      _onNodeCreated?.apply(this)
 
-        if (!this.properties) {
-          this.properties = { preview: "" }
-        }
+      this.properties ??= {}
+      const value = this.properties.preview ?? ""
 
-        const previewWidget = ComfyWidgets["STRING"](this, "preview", ["STRING", { multiline: true, default: this.properties.preview }], app).widget
+      const widget = ComfyWidgets.STRING(this, "preview", ["STRING", { multiline: true, default: value }], app).widget
 
-        previewWidget.element.style.opacity = "0.6";
-        previewWidget.element.setAttribute("aria-readonly", "true");
-        previewWidget.element.readOnly = true
-        previewWidget.serialize_widgets = true
-      }
+      widget.inputEl.readOnly = true
+      widget.element.style.opacity = "0.6"
+      widget.serialize = true
+    }
 
-      const onExecuted = nodeType.prototype.onExecuted
+    const _onExecuted = nodeType.prototype.onExecuted
+    nodeType.prototype.onExecuted = function (msg) {
+      _onExecuted?.apply(this, arguments)
 
-      nodeType.prototype.onExecuted = function (message) {
-        onExecuted?.apply(this, [message])
+      const w = this.widgets?.find((w) => w.name === "preview")
+      if (!w) return
 
-        const previewWidget = this.widgets?.find((w) => w.name === "preview")
+      let val = Array.isArray(msg.value) ? msg.value.join("\n") : msg.value
+      if (!val && this.properties?.preview) val = this.properties.preview
 
-        if (previewWidget) {
-          const newValue = Array.isArray(message.value) ? message.value.join("\n") : message.value
-          previewWidget.value = newValue
-        }
+      w.value = val
+      this.properties.preview = val
+    }
+
+    const _configure = nodeType.prototype.configure
+    nodeType.prototype.configure = function () {
+      return _configure?.apply(this, arguments)
+    }
+
+    const _onConfigure = nodeType.prototype.onConfigure
+    nodeType.prototype.onConfigure = function () {
+      _onConfigure?.apply(this, arguments)
+
+      const val = this.properties?.preview
+      if (val != null) {
+        requestAnimationFrame(() => {
+          const w = this.widgets?.find((w) => w.name === "preview")
+          if (w) w.value = val
+        })
       }
     }
   },
